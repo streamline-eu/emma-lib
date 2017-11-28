@@ -73,6 +73,26 @@
             <artifactId>spark-mllib-local_${scala.tools.version}</artifactId>
             <version>${spark.version}</version>
         </dependency>
+
+        <!-- XGBoost Streamline -->
+        <dependency>
+            <groupId>ml.dmlc</groupId>
+            <artifactId>xgboost4j</artifactId>
+            <version>0.7</version>
+        </dependency>
+
+         <dependency>
+            <groupId>ml.dmlc</groupId>
+            <artifactId>xgboost4j</artifactId>
+            <version>0.7</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.esotericsoftware.kryo</groupId>
+            <artifactId>kryo</artifactId>
+            <version>2.21</version>
+        </dependency>
+
     </dependencies>
 
     <build>
