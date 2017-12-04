@@ -31,13 +31,13 @@ import org.apache.flink.ml.math.DenseVector
 object XGBoostFlink extends FlinkAware {
 
 
-  def run(input: String, dimension: Int, rounds: Int, params: Map[String, Any]) = {
+  def run(fileName: String, dimension: Int, rounds: Int, params: Map[String, Any]) = {
     withDefaultFlinkEnv(implicit flink => emma.onFlink {
 
       val trackerConf = TrackerUtils.getDefaultTackerConf
       val tracker = TrackerUtils.startTracker(flink.getParallelism, trackerConf)
 
-      val in = DataBag.readText(input) map {
+      val in = DataBag.readText(fileName) map {
         line => {
           val splits = line.split(' ')
           val label = splits.head
@@ -50,20 +50,18 @@ object XGBoostFlink extends FlinkAware {
 
               (index, value)
             }
-          Some(LabeledVector(label.toDouble, SparseVector.fromCOO(dimension, features)))
+          LabeledVector(label.toDouble, SparseVector.fromCOO(dimension, features))
         }
       }
 
-      val ds = toDataSet[LabeledVector](in)
+      val ds = toDataSet[LabeledVector](flink, implicitly[Meta[LabeledVector]])(in)
 
-      val input: DataBag[((LabeledVector, Long))] =
-        fromDataSet(ds.map(new RichMapFunction[LabeledVector, (LabeledVector, Long)]() {
-        override def map(value: LabeledVector) = (LabeledPoint(value.label, value.vector.), getRuntimeContext.getIndexOfThisSubtask)
-      }).map(new LabelVectorToLabeledPointMapper))
+      val input: DataBag[((LabeledPoint, Long))] =
+        fromDataSet(flink, implicitly[Meta[(LabeledPoint, Long)]])(
+          ds.map(new LabelVectorToLabeledPointMapper)
+        )
 
       val model = XGBoost.train(input, tracker, rounds, params)
-
-
 
 
     })
@@ -71,8 +69,9 @@ object XGBoostFlink extends FlinkAware {
 
 }
 
-private [xgboost] class LabelVectorToLabeledPointMapper extends RichMapFunction[LabeledVector, LabeledPoint] {
-  override def map(x: LabeledVector): LabeledPoint = {
+private [xgboost] class LabelVectorToLabeledPointMapper
+  extends RichMapFunction[LabeledVector, (LabeledPoint, Long)] {
+  override def map(x: LabeledVector): (LabeledPoint, Long) = {
     var index: Array[Int] = Array[Int]()
     var value: Array[Double] = Array[Double]()
     x.vector match {
@@ -84,8 +83,11 @@ private [xgboost] class LabelVectorToLabeledPointMapper extends RichMapFunction[
         index = i.toArray
         value = v.toArray
     }
-    LabeledPoint(x.label.toFloat,
-      index, value.seq.map(z => z.toFloat).toArray)
+    (LabeledPoint(
+      x.label.toFloat,
+      index,
+      value.seq.map(z => z.toFloat).toArray
+    ), getRuntimeContext.getIndexOfThisSubtask)
   }
 }
 
@@ -126,7 +128,7 @@ private [xgboost] object TrackerUtils {
                    trackerConf: TrackerConf = getDefaultTackerConf
                   ): IRabitTracker = {
     val tracker: IRabitTracker = trackerConf.trackerImpl match {
-      case "scala" => new ScalaRabitTracker(nWorkers)
+      //case "scala" => new ScalaRabitTracker(nWorkers)
       case "python" => new PythonRabitTracker(nWorkers)
       case _ => new PythonRabitTracker(nWorkers)
     }

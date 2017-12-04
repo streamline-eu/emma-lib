@@ -36,7 +36,7 @@ object XGBoost {
     round: Int,
     params: Map[String, Any],
     obj: ObjectiveTrait = null,
-    eval: EvalTrait = null,
+    eval: EvalTrait = null
   ): Booster = {
 
     (
